@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MPI Fisika - Titik Berat Benda Dua Dimensi</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Nunito',sans-serif;background:#fff7ed;color:#431407}
+h1,h2,h3,.fd{font-family:'Baloo 2',sans-serif}
+.btn{background:#f97316;color:#fff;font-weight:800;border-radius:14px;padding:.65rem 1.2rem;box-shadow:0 4px 0 #c2410c;transition:.15s;cursor:pointer;border:0}
+.btn:hover{background:#ea580c;transform:translateY(-2px)}
+.btn:disabled{background:#d6d3d1;box-shadow:0 4px 0 #a8a29e;cursor:not-allowed;transform:none}
+.btn2{background:#fff;color:#c2410c;border:2px solid #f97316;box-shadow:0 4px 0 #fdba74}
+.btn2:hover{background:#ffedd5}
+.card{background:#fff;border:2px solid #fed7aa;border-radius:18px;padding:1.1rem}
+.wrap{max-width:760px;margin:0 auto;padding:4.5rem 1rem 3rem}
+.slot{display:inline-block;min-width:70px;height:2rem;border-bottom:3px dashed #f97316;text-align:center;font-weight:800;color:#c2410c;vertical-align:bottom;margin:0 4px}
+.chip{background:#ffedd5;border:2px solid #fb923c;border-radius:10px;padding:.25rem .8rem;font-weight:800;cursor:grab;user-select:none}
+.chip.sel{background:#f97316;color:#fff}
+.w{cursor:pointer;padding:1px 3px;border-radius:5px}
+.w.sel{background:#fb923c;color:#fff}
+.opt{display:block;width:100%;text-align:left;margin:.4rem 0;background:#fff;border:2px solid #fdba74;border-radius:12px;padding:.6rem .9rem;font-weight:700;cursor:pointer}
+.opt.ok{background:#bbf7d0;border-color:#16a34a}.opt.no{background:#fecaca;border-color:#dc2626}
+details{border:2px solid #fed7aa;border-radius:12px;padding:.6rem .9rem;margin:.5rem 0;background:#fffbf5}
+summary{font-weight:800;cursor:pointer;color:#c2410c}
+table{width:100%;border-collapse:collapse}td,th{border:1px solid #fed7aa;padding:.4rem .6rem}th{background:#ffedd5}
+.pop{animation:pop .9s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes pop{from{opacity:0;transform:scale(.4) translateY(40px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.pop{animation:none}}
+#cert{border:10px double #f97316;background:#fff;padding:2rem;text-align:center;border-radius:12px}
+@media print{body *{visibility:hidden}#cert,#cert *{visibility:visible}#cert{position:absolute;left:0;top:0;width:100%}}
+</style>
+</head>
+<body>
+<button id="homeBtn" class="btn fixed top-3 left-3 z-50 hidden" data-go="menu">🏠 HOME</button>
+<div id="app"></div>
+
+<script>
+/* ====== KONFIGURASI ======
+   Tempel URL Web App Google Apps Script (Spreadsheet) di bawah agar nilai masuk ke Sheet. */
+const SHEET_URL = "";
+const DEV = "Heni Suhartini, S.T.P., M.Pd.";
+const $ = id => document.getElementById(id);
+const app = $("app");
+let studentName = "", studentClass = "", lastScore = 0, lastRes = [];
+
+/* ====== AUDIO (disintesis, tanpa file eksternal) ====== */
+let ac, mg, musicOn = true, vol = .5, mt = null, st = 0;
+const NOTES = [523,587,659,784,880,784,659,587,523,659,784,1047,880,784,659,587];
+function ctx(){ if(!ac){ ac = new (window.AudioContext||window.webkitAudioContext)(); mg = ac.createGain(); mg.gain.value = vol*.2; mg.connect(ac.destination);} if(ac.state==="suspended") ac.resume(); }
+function tone(f,d,type,g,dest){ const o=ac.createOscillator(), e=ac.createGain(); o.type=type; o.frequency.value=f; e.gain.setValueAtTime(g,ac.currentTime); e.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d); o.connect(e); e.connect(dest); o.start(); o.stop(ac.currentTime+d); }
+function sfx(f=700){ try{ ctx(); tone(f,.12,"square",vol*.25,ac.destination);}catch(e){} }
+function startMusic(){ try{ ctx(); if(mt||!musicOn) return; mt=setInterval(()=>{ const n=NOTES[st%16]; tone(n,.25,"triangle",1,mg); if(st%4===0) tone(n/4,.5,"sine",1,mg); st++; },280);}catch(e){} }
+function stopMusic(){ clearInterval(mt); mt=null; }
+document.addEventListener("click",e=>{ if(e.target.closest("button,.opt,.chip")) sfx(); const g=e.target.closest("[data-go]"); if(g) go(g.dataset.go); startMusic(); });
+
+/* ====== NAVIGASI ====== */
+function go(name){ $("homeBtn").classList.toggle("hidden", name==="splash"); window.scrollTo(0,0); S[name](); }
+const shell = inner => `<div class="wrap">${inner}</div>`;
+const foot = `<p class="text-center text-sm mt-8 text-orange-800">Pengembang: <b>${DEV}</b> &nbsp;|&nbsp; Tahun 2026</p>`;
+
+const S = {
+splash(){ app.innerHTML = `<div class="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gradient-to-b from-orange-400 to-orange-200">
+ <div class="pop text-8xl mb-2">⚖️</div>
+ <p class="pop fd text-white text-xl" style="animation-delay:.3s">Media Pembelajaran Interaktif Fisika • Kelas XI SMA</p>
+ <h1 class="pop text-white text-5xl md:text-7xl font-extrabold leading-tight my-3" style="animation-delay:.5s;text-shadow:0 4px 0 #c2410c">TITIK BERAT<br>BENDA DIMENSI DUA</h1>
+ <button class="btn pop text-2xl mt-6 px-10" style="animation-delay:.9s" data-go="menu">▶ MULAI</button>
+ <p class="mt-10 text-orange-950 text-sm">Pengembang: <b>${DEV}</b> • Tahun 2026</p></div>`; },
+
+menu(){ app.innerHTML = shell(`<h1 class="text-4xl font-extrabold text-orange-600 text-center">Menu Utama</h1>
+ <div class="grid grid-cols-2 gap-4 my-6">
+  ${[["beranda","🏠","BERANDA"],["materi","📖","MATERI"],["simulasi","🧮","SIMULASI"],["kuis","🎮","KUIS"]].map(m=>`<button class="btn py-8 text-2xl" data-go="${m[0]}"><div class="text-5xl">${m[1]}</div>${m[2]}</button>`).join("")}
+ </div>
+ <div class="card"><h3 class="text-xl font-extrabold text-orange-600">⚙️ Pengaturan</h3>
+  <div class="flex items-center gap-4 mt-2 flex-wrap">
+   <button id="mtog" class="btn btn2">${musicOn?"🎵 Musik: ON":"🔇 Musik: OFF"}</button>
+   <label class="flex items-center gap-2 font-bold">Volume <input id="vol" type="range" min="0" max="1" step=".05" value="${vol}" class="accent-orange-500"></label>
+  </div></div>${foot}`);
+ $("mtog").onclick=()=>{ musicOn=!musicOn; $("mtog").textContent=musicOn?"🎵 Musik: ON":"🔇 Musik: OFF"; musicOn?startMusic():stopMusic(); };
+ $("vol").oninput=e=>{ vol=+e.target.value; if(mg) mg.gain.value=vol*.2; }; },
+
+beranda(){ app.innerHTML = shell(`<h2 class="text-3xl font-extrabold text-orange-600">Beranda</h2>
+ <div class="card mt-3"><h3 class="font-extrabold text-xl">Tujuan Pembelajaran</h3><ol class="list-decimal ml-6 mt-2 space-y-1"><li>Siswa dapat memahami konsep titik berat benda berdimensi dua.</li><li>Siswa dapat menerapkan konsep titik berat benda berdimensi dua dalam kehidupan sehari-hari.</li></ol></div>
+ <div class="card mt-3"><h3 class="font-extrabold text-xl">Petunjuk Penggunaan</h3><ul class="list-disc ml-6 mt-2 space-y-1"><li><b>MATERI</b>: pelajari konsep, rumus, dan contoh soal.</li><li><b>KUIS</b>: mainkan 4 game, masing-masing 3 level.</li><li><b>SIMULASI</b>: kerjakan 10 soal hitungan, isi nama, lalu dapatkan sertifikat.</li><li>Atur musik dan volume di Menu Utama.</li></ul></div>${foot}`); },
+
+materi(){ const T = [
+ ["Konsep",`<p>Setiap benda tersusun dari partikel-partikel yang masing-masing punya berat. Semua berat itu dapat dianggap bekerja pada satu titik yang disebut <b>titik berat (Z)</b>.</p><p class="mt-2">Benda dua dimensi (<i>lamina</i>) adalah benda tipis dengan ketebalan diabaikan, letak titik beratnya dinyatakan dengan koordinat <b>(x₀, y₀)</b>.</p>
+ <details><summary>Klik: Di mana titik berat benda simetris?</summary>Pada sumbu simetri atau pusat simetrinya, selama benda homogen.</details>
+ <details><summary>Klik: Apakah titik berat harus berada di dalam benda?</summary>Tidak. Pada benda berbentuk cincin atau huruf L, titik beratnya bisa berada di luar benda.</details>`],
+ ["Bangun Dasar",`<table><tr><th>Bangun</th><th>Letak titik berat</th></tr><tr><td>Persegi panjang p × l</td><td>(p/2 , l/2) dari sudut</td></tr><tr><td>Segitiga tinggi t</td><td>y = ⅓ t dari alas</td></tr><tr><td>Lingkaran</td><td>Di pusat lingkaran</td></tr><tr><td>Setengah lingkaran r</td><td>y = 4r/3π dari diameter</td></tr><tr><td>Jajargenjang</td><td>Perpotongan diagonal</td></tr></table>
+ <details><summary>Klik: Contoh persegi panjang 8 × 6</summary>Jika sudut kiri bawah di (0,0), maka titik beratnya (4 , 3).</details>`],
+ ["Benda Gabungan",`<p>Bagi benda menjadi bangun-bangun dasar, lalu hitung:</p><div class="card my-2 text-center fd text-xl">x₀ = ΣA·x / ΣA &nbsp;&nbsp; y₀ = ΣA·y / ΣA</div>
+ <ol class="list-decimal ml-6 space-y-1"><li>Bagi benda menjadi bangun dasar.</li><li>Tentukan luas (A) dan titik berat (x, y) tiap bagian.</li><li>Hitung ΣA·x, ΣA·y, dan ΣA.</li><li>Bagi untuk mendapat x₀ dan y₀.</li></ol>
+ <details><summary>Klik: Bagaimana benda berlubang?</summary>Luas lubang diberi tanda <b>negatif</b> (dikurangkan) pada ΣA, ΣA·x, dan ΣA·y.</details>`],
+ ["Contoh Soal",`<p><b>Soal.</b> Lamina huruf L terdiri dari persegi panjang A₁ (6 × 2) di bawah dan A₂ (2 × 4) di atasnya pada sisi kiri. Tentukan titik beratnya!</p>
+ <details><summary>Klik: Langkah 1 - Luas & titik berat</summary>A₁ = 12, (3 , 1). A₂ = 8, (1 , 4).</details>
+ <details><summary>Klik: Langkah 2 - Hitung x₀</summary>x₀ = (12·3 + 8·1) / 20 = 44/20 = 2,2</details>
+ <details><summary>Klik: Langkah 3 - Hitung y₀</summary>y₀ = (12·1 + 8·4) / 20 = 44/20 = 2,2 → titik berat <b>(2,2 ; 2,2)</b></details>`],
+ ["Kehidupan Sehari-hari",`<details><summary>🏗️ Menara Pisa</summary>Selama garis vertikal dari titik berat masih jatuh di dalam bidang alas, menara tidak roboh walau miring.</details>
+ <details><summary>🏎️ Mobil balap</summary>Titik berat dibuat rendah agar stabil dan tidak mudah terguling saat menikung.</details>
+ <details><summary>🎒 Ransel dan rak buku</summary>Beban berat ditaruh dekat punggung atau di rak bawah supaya titik berat rendah dan seimbang.</details>
+ <details><summary>🩰 Penari dan pesenam</summary>Mereka mengatur posisi tubuh agar titik berat tetap di atas titik tumpu.</details>`]];
+ let i=0; const draw=()=>{ app.innerHTML = shell(`<h2 class="text-3xl font-extrabold text-orange-600">Materi</h2>
+  <div class="flex flex-wrap gap-2 my-3">${T.map((t,k)=>`<button class="btn ${k===i?"":"btn2"} text-sm" data-t="${k}">${t[0]}</button>`).join("")}</div>
+  <div class="card">${T[i][1]}</div>
+  <div class="flex justify-between mt-4"><button class="btn btn2" id="pv" ${i===0?"disabled":""}>◀ Sebelumnya</button><button class="btn" id="nx" ${i===T.length-1?"disabled":""}>Berikutnya ▶</button></div>`);
+  app.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{i=+b.dataset.t;draw()}); $("pv").onclick=()=>{i--;draw()}; $("nx").onclick=()=>{i++;draw()}; };
+ draw(); },
+
+simulasi(){ app.innerHTML = shell(`<h2 class="text-3xl font-extrabold text-orange-600">Simulasi: Uji Pemahaman</h2>
+ <div class="card mt-3"><p>10 soal hitungan titik berat benda dua dimensi (pilihan ganda, drag the word, dan mark the word). Nilaimu dikirim ke Sheet guru.</p>
+ <label class="block font-bold mt-3" for="nm">Nama siswa</label>
+ <input id="nm" type="text" autocomplete="off" maxlength="40" value="${studentName}" placeholder="Ketik nama lengkapmu" class="w-full border-2 border-orange-300 rounded-xl p-3 mt-1 outline-none focus:border-orange-500">
+ <label class="block font-bold mt-3" for="kl">Kelas</label>
+ <input id="kl" type="text" autocomplete="off" maxlength="20" value="${studentClass}" placeholder="Contoh: XI IPA 1" class="w-full border-2 border-orange-300 rounded-xl p-3 mt-1 outline-none focus:border-orange-500">
+ <button id="st" class="btn mt-4">MULAI SIMULASI</button></div>`);
+ $("st").onclick=()=>{ const v=$("nm").value.trim(), k=$("kl").value.trim(); if(!v){ $("nm").focus(); $("nm").placeholder="Nama wajib diisi!"; return; } if(!k){ $("kl").focus(); $("kl").placeholder="Kelas wajib diisi!"; return; } studentName=v; studentClass=k;
+  runSet(SIM,"Simulasi",(sc,res)=>{ lastScore=sc*10; lastRes=res; save(); go("cert"); }); }; },
+
+kuis(){ app.innerHTML = shell(`<h2 class="text-3xl font-extrabold text-orange-600">Kuis: Pilih Game</h2><div class="grid grid-cols-2 gap-4 mt-4">${GAMES.map((g,i)=>`<button class="btn py-6 text-lg" data-g="${i}"><div class="text-4xl">${g.ic}</div>${g.n}<div class="text-xs font-normal">Level terbuka: ${g.u}/3</div></button>`).join("")}</div>`);
+ app.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>levels(+b.dataset.g)); },
+
+cert(){ const d=new Date().toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"});
+ app.innerHTML = shell(`<div id="cert"><div class="text-6xl">🏅</div><h1 class="text-4xl font-extrabold text-orange-600">SERTIFIKAT PENCAPAIAN</h1>
+ <p class="mt-3">Diberikan kepada</p><h2 class="text-4xl font-extrabold my-2 break-words">${esc(studentName)}</h2><p class="text-xl font-bold">Kelas ${esc(studentClass)}</p>
+ <p>yang telah menyelesaikan simulasi <b>Titik Berat Benda Berdimensi Dua</b><br>Fisika Kelas XI SMA dengan nilai</p>
+ <div class="fd text-6xl font-extrabold text-orange-500 my-2">${lastScore}</div><p>${d}</p><p class="mt-4 text-sm">Pengembang: ${DEV} • 2026</p></div>
+ <div class="text-center mt-4 flex gap-3 justify-center flex-wrap"><button class="btn" id="dl">⬇ Unduh Hasil (PDF)</button><button class="btn btn2" onclick="window.print()">🖨️ Cetak Sertifikat</button></div>
+ <div class="card mt-5"><h3 class="font-extrabold text-xl text-orange-600">Rekap Jawaban (klik untuk melihat)</h3>${lastRes.map((r,i)=>`<details><summary>${r.ok?"✔":"✘"} Soal ${i+1}</summary><p class="mt-1">${esc(r.q)}</p><p><b>Jawaban:</b> ${esc(String(r.ans))}</p><p class="text-sm">${SIM[i].e}</p></details>`).join("")}</div>`); $("dl").onclick=pdf; }
+};
+
+const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function save(){ const row={nama:studentName,kelas:studentClass,skor:lastScore,waktu:new Date().toLocaleString("id-ID")};
+ try{ const a=JSON.parse(localStorage.getItem("mpi_nilai")||"[]"); a.push(row); localStorage.setItem("mpi_nilai",JSON.stringify(a)); }catch(e){}
+ if(SHEET_URL) fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify(row)}).catch(()=>{}); }
+
+/* ====== MESIN SOAL ====== */
+const mc=(q,o,a,img,e)=>({t:"mc",q,o,a,img,e}), tf=(q,v)=>({t:"mc",q,o:["Benar","Salah"],a:v?0:1}),
+      dr=(q,c,a,img,e)=>({t:"dr",q,c,a,img,e}), mk=(q,a,img,e)=>({t:"mk",q,a,img,e});
+function runSet(qs,title,end){ let i=0,sc=0,res=[]; (function n(){ if(i>=qs.length) return end(sc,res);
+ app.innerHTML = shell(`<h2 class="text-2xl font-extrabold text-orange-600">${title}</h2><div class="w-full bg-orange-100 rounded-full h-3 my-2"><div class="bg-orange-500 h-3 rounded-full" style="width:${i/qs.length*100}%"></div></div><p class="font-bold mb-2">Soal ${i+1} dari ${qs.length}</p><div class="card" id="qb"></div>`);
+ renderQ(qs[i],$("qb"),(ok,ans)=>{ res.push({q:qs[i].q,ok,ans}); if(ok) sc++; i++; n(); }); })(); }
+
+function renderQ(q,box,cb){ let over=false, tm=null;
+ const fin=(ok,ans)=>{ if(over) return; over=true; clearInterval(tm);
+  box.insertAdjacentHTML("beforeend",`<p class="mt-3 font-extrabold ${ok?"text-green-600":"text-red-600"}">${ok?"✔ Benar!":"✘ Kurang tepat."+(q.e?"":" Jawaban: "+ans)}</p>${q.e?`<button class="btn btn2 mt-2" id="ex">💡 Klik untuk lihat jawaban</button><p id="exp" class="hidden mt-2 card text-sm"><b>Jawaban:</b> ${ans}<br><b>Pembahasan:</b> ${q.e}</p>`:""}<div><button class="btn mt-3" id="nxt">Lanjut ▶</button></div>`);
+  if(q.e) $("ex").onclick=()=>$("exp").classList.toggle("hidden"); $("nxt").onclick=()=>cb(ok,ans); };
+ let head=`<p class="text-lg font-bold mb-2">${q.t==="dr"?"":q.q}</p>`+(q.img||"");
+ if(q.time){ let t=q.time; head=`<p class="font-extrabold text-orange-600" id="tm">⏱ ${t} detik</p>`+head; setTimeout(()=>{ tm=setInterval(()=>{ t--; if($("tm")) $("tm").textContent="⏱ "+t+" detik"; if(t<=0) fin(false,q.o[q.a]); },1000); }); }
+ if(q.t==="mc"){ box.innerHTML=head+q.o.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join("");
+  box.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{ if(over) return; const i=+b.dataset.i; b.classList.add(i===q.a?"ok":"no"); if(i!==q.a&&!q.e) box.querySelectorAll(".opt")[q.a].classList.add("ok"); fin(i===q.a,q.o[q.a]); }); }
+ if(q.t==="dr"){ const p=q.q.split("___"), f={}; let sel=null;
+  box.innerHTML=(q.img||"")+`<p class="text-sm mb-2">Seret kata ke tempat kosong (atau ketuk kata, lalu ketuk tempat kosong).</p><p class="text-lg leading-10">${p.map((x,i)=>x+(i<p.length-1?`<span class="slot" data-i="${i}"></span>`:"")).join("")}</p><div class="flex flex-wrap gap-2 my-3">${q.c.map((c,i)=>`<span class="chip" draggable="true" data-c="${i}">${c}</span>`).join("")}</div><button class="btn" id="chk">Periksa</button>`;
+  const put=(s,c)=>{ f[s.dataset.i]=c; s.textContent=q.c[c]; };
+  box.querySelectorAll(".chip").forEach(c=>{ c.onclick=()=>{ box.querySelectorAll(".chip").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); sel=+c.dataset.c; }; c.ondragstart=e=>e.dataTransfer.setData("t",c.dataset.c); });
+  box.querySelectorAll(".slot").forEach(s=>{ s.onclick=()=>{ if(over) return; if(sel!==null) put(s,sel); }; s.ondragover=e=>e.preventDefault(); s.ondrop=e=>{ e.preventDefault(); put(s,+e.dataTransfer.getData("t")); }; });
+  $("chk").onclick=()=>{ if(over) return; $("chk").remove(); fin(q.a.every((a,i)=>f[i]!==undefined&&q.c[f[i]]===a), q.a.join(" ; ")); }; }
+ if(q.t==="mk"){ let sel=null;
+  box.innerHTML=(q.img||"")+`<p class="text-sm mb-2">Klik kata yang dimaksud, lalu tekan Periksa.</p><p class="text-lg leading-9">${q.q.split(" ").map(w=>`<span class="w">${w}</span>`).join(" ")}</p><button class="btn mt-3" id="chk">Periksa</button>`;
+  box.querySelectorAll(".w").forEach(w=>w.onclick=()=>{ if(over) return; box.querySelectorAll(".w").forEach(x=>x.classList.remove("sel")); w.classList.add("sel"); sel=w.textContent; });
+  $("chk").onclick=()=>{ if(over||sel===null) return; $("chk").remove(); fin(sel.replace(/[,.;:]+$/,"")===q.a,q.a); }; } }
+
+/* ====== GAMBAR BANGUN DATAR (SVG) ====== */
+function fig(mx,my,fn){ const u=Math.min(250/mx,170/my), W=Math.round(mx*u+70), H=Math.round(my*u+56);
+ const P=(x,y)=>[30+x*u,H-28-y*u], pts=a=>a.map(p=>P(p[0],p[1]).map(n=>n.toFixed(1)).join(",")).join(" ");
+ const g=(a,f="#fed7aa",x="")=>`<polygon points="${pts(a)}" fill="${f}" stroke="#ea580c" stroke-width="2" ${x}/>`;
+ const T=(x,y,t,dx=0,dy=0)=>{ const p=P(x,y); return `<text x="${p[0]+dx}" y="${p[1]+dy}" font-size="13" font-weight="700" fill="#7c2d12" text-anchor="middle">${t}</text>`; };
+ const o=P(0,0), ax=`<line x1="${o[0]-12}" y1="${o[1]}" x2="${W-8}" y2="${o[1]}" stroke="#a8a29e"/><line x1="${o[0]}" y1="${o[1]+12}" x2="${o[0]}" y2="8" stroke="#a8a29e"/><text x="${W-6}" y="${o[1]-5}" font-size="12" text-anchor="end" fill="#78716c">x</text><text x="${o[0]+8}" y="14" font-size="12" fill="#78716c">y</text>`+T(0,0,"(0,0)",-6,16);
+ return `<svg viewBox="0 0 ${W} ${H}" width="${W}" style="max-width:100%;height:auto;display:block;margin:.5rem auto" role="img" aria-label="Gambar bangun datar">${ax}${fn(g,T,P,u)}</svg>`; }
+const F={
+ r1:fig(8,6,(g,T)=>g([[0,0],[8,0],[8,6],[0,6]])+T(4,0,"8 cm",0,18)+T(8,3,"6 cm",26,4)),
+ L:fig(6,6,(g,T)=>g([[0,0],[6,0],[6,2],[2,2],[2,6],[0,6]])+T(1,4,"A₂",0,5)+T(3,1,"A₁",0,5)+T(3,0,"6",0,18)+T(6,1,"2",12,4)+T(2,4,"4",12,4)+T(1,6,"2",0,-6)),
+ house:fig(6,9,(g,T,P)=>{ const a=P(0,6), b=P(6,6); return g([[0,0],[6,0],[6,6],[3,9],[0,6]])+`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#ea580c" stroke-dasharray="4"/>`+T(3,0,"6",0,18)+T(6,3,"6",12,4)+T(6,7.5,"3",14,4); }),
+ hole:fig(6,6,(g,T)=>g([[0,0],[6,0],[6,6],[0,6]])+g([[3,3],[6,3],[6,6],[3,6]],"#fff",'stroke-dasharray="5"')+T(4.5,4.5,"lubang",0,4)+T(3,0,"6",0,18)+T(0,3,"6",-12,4)),
+ t1:fig(6,9,(g,T)=>g([[0,0],[6,0],[0,9]])+T(3,0,"6",0,18)+T(0,4.5,"9",-12,4)),
+ r2:fig(10,4,(g,T)=>g([[0,0],[10,0],[10,4],[0,4]])+T(5,0,"10",0,18)+T(10,2,"4",12,4)),
+ Tt:fig(6,6,(g,T)=>g([[0,0],[6,0],[6,2],[4,2],[4,6],[2,6],[2,2],[0,2]])+T(3,1,"A₁",0,5)+T(3,4,"A₂",0,5)),
+ t2:fig(9,6,(g,T)=>g([[0,0],[9,0],[0,6]])+T(4.5,0,"9",0,18)+T(0,3,"6",-12,4)),
+ t3:fig(12,6,(g,T)=>g([[0,0],[12,0],[0,6]])+T(6,0,"12",0,18)+T(0,3,"6",-12,4)),
+ semi:fig(8,8,(g,T,P,u)=>{ const a=P(0,4), b=P(8,4); return g([[0,0],[8,0],[8,4],[0,4]])+`<path d="M${a[0]} ${a[1]} A${4*u} ${4*u} 0 0 1 ${b[0]} ${b[1]}" fill="#fdba74" stroke="#ea580c" stroke-width="2"/>`+T(4,2,"A₁",0,5)+T(4,5.5,"A₂",0,5)+T(4,0,"8",0,18)+T(8,2,"4",12,4); })
+};
+
+/* ====== UNDUH PDF ====== */
+const asc=s=>String(s).replace(/[₀-₉]/g,c=>"₀₁₂₃₄₅₆₇₈₉".indexOf(c)).replace(/⅓/g,"1/3").replace(/⅔/g,"2/3").replace(/½/g,"1/2").replace(/[−–]/g,"-").replace(/Σ/g,"Sigma ").replace(/π/g,"pi").replace(/[^\x00-\xFF]/g,"");
+function pdf(){ if(!window.jspdf){ alert("Pustaka PDF belum termuat (periksa internet). Gunakan Cetak lalu pilih 'Simpan sebagai PDF'."); window.print(); return; }
+ const d=new window.jspdf.jsPDF(); let y=18;
+ const ln=(t,sz=11,b=false)=>{ d.setFontSize(sz); d.setFont("helvetica",b?"bold":"normal"); d.splitTextToSize(asc(t),180).forEach(x=>{ if(y>280){ d.addPage(); y=18; } d.text(x,15,y); y+=sz*.5+1.5; }); };
+ ln("HASIL SIMULASI - TITIK BERAT BENDA DIMENSI DUA",14,true); ln("Fisika Kelas XI SMA"); y+=3;
+ ln("Nama     : "+studentName); ln("Kelas    : "+studentClass); ln("Tanggal  : "+new Date().toLocaleDateString("id-ID"));
+ ln("Nilai    : "+lastScore+" (benar "+lastScore/10+" dari 10 soal)",12,true); y+=4;
+ lastRes.forEach((r,i)=>{ ln((i+1)+". ["+(r.ok?"BENAR":"SALAH")+"] "+r.q,10,true); ln("   Jawaban benar: "+r.ans,10); ln("   Pembahasan: "+SIM[i].e,10); y+=2; });
+ y+=6; ln("Pengembang: "+DEV+" - 2026",9);
+ d.save("Hasil_Simulasi_"+asc(studentName).replace(/\s+/g,"_")+".pdf"); }
+
+/* ====== SOAL SIMULASI (10 soal, bergambar) ====== */
+const SIM=[
+ mc("Perhatikan gambar persegi panjang berikut (sudut kiri bawah di titik asal). Koordinat titik beratnya adalah ...",["(4 ; 3)","(8 ; 6)","(3 ; 4)","(6 ; 8)"],0,F.r1,"Titik berat persegi panjang di tengah: x₀ = ½·8 = 4 dan y₀ = ½·6 = 3."),
+ mc("Lamina berbentuk huruf L pada gambar. Koordinat titik beratnya adalah ...",["(2,2 ; 2,2)","(3 ; 3)","(2 ; 3)","(2,5 ; 2)"],0,F.L,"A₁ = 12 di (3 ; 1), A₂ = 8 di (1 ; 4). x₀ = (36+8)/20 = 2,2 dan y₀ = (12+32)/20 = 2,2."),
+ mc("Bangun berbentuk rumah: persegi sisi 6 dan segitiga alas 6, tinggi 3 di atasnya. Koordinat y₀ titik beratnya adalah ...",["3,8","4,5","3,0","4,0"],0,F.house,"A₁ = 36, y₁ = 3. A₂ = ½·6·3 = 9, y₂ = 6 + ⅓·3 = 7. y₀ = (108+63)/45 = 3,8 (x₀ = 3)."),
+ mc("Persegi 6×6 berlubang persegi 3×3 di pojok kanan atas. Koordinat titik beratnya adalah ...",["(2,5 ; 2,5)","(3 ; 3)","(2 ; 2)","(3,5 ; 3,5)"],0,F.hole,"Utuh: A₁ = 36 di (3 ; 3). Lubang: A₂ = 9 di (4,5 ; 4,5). x₀ = (108 − 40,5)/(36 − 9) = 2,5; y₀ sama = 2,5."),
+ mc("Segitiga siku-siku pada gambar. Koordinat titik beratnya adalah ...",["(2 ; 3)","(3 ; 4,5)","(3 ; 3)","(2 ; 4,5)"],0,F.t1,"x₀ = (0+6+0)/3 = 2 dan y₀ = (0+0+9)/3 = 3."),
+ dr("Persegi panjang pada gambar memiliki titik berat x₀ = ___ dan y₀ = ___",["5","2","10","4"],["5","2"],F.r2,"x₀ = ½·10 = 5 dan y₀ = ½·4 = 2."),
+ dr("Perhatikan bangun T (gabungan A₁ dan A₂). Rumusnya: x₀ = (A₁x₁ + A₂x₂) / ___",["(A₁ + A₂)","(x₁ + x₂)","(A₁ × A₂)"],["(A₁ + A₂)"],F.Tt,"Pembaginya adalah jumlah luas seluruh bagian: ΣA = A₁ + A₂."),
+ dr("Segitiga pada gambar memiliki titik berat x₀ = ___ dan y₀ = ___",["3","2","9","6"],["3","2"],F.t2,"x₀ = (0+9+0)/3 = 3 dan y₀ = (0+0+6)/3 = 2."),
+ mk("Klik koordinat titik berat segitiga pada gambar: (4,3) (6,3) (4,2) (2,4)","(4,2)",F.t3,"x₀ = (0+12+0)/3 = 4 dan y₀ = (0+0+6)/3 = 2, sehingga titik beratnya (4 , 2)."),
+ mk("Bangun gabungan persegi panjang dan setengah lingkaran. Koordinat titik berat benda gabungan dihitung dengan membagi jumlah momen luas dengan jumlah panjang. Klik kata yang salah!","panjang",F.semi,"Pembagi yang benar adalah jumlah luas (ΣA), bukan jumlah panjang.")];
+
+/* ====== GAME KUIS (4 game x 3 level) ====== */
+const GAMES=[
+ {n:"Tebak Cepat",ic:"🎯",u:1,L:[
+  [mc("Titik berat adalah titik tempat ...",["seluruh berat benda terpusat","benda berhenti","benda paling panas"],0),mc("Titik berat persegi panjang berada di ...",["perpotongan diagonal","salah satu sudut","tengah sisi"],0)],
+  [mc("Titik berat segitiga dari alas berjarak ...",["⅓ tinggi","½ tinggi","⅔ tinggi"],0),mc("Persegi sisi 8 cm, sudut di (0,0). Titik beratnya ...",["(4 ; 4)","(8 ; 8)","(4 ; 8)"],0)],
+  [mc("Persegi panjang 12 × 5 sudut (0,0). Titik beratnya ...",["(6 ; 2,5)","(12 ; 5)","(5 ; 6)"],0),mc("Lingkaran berjari-jari 7 berpusat di (3,3). Titik beratnya ...",["(3 ; 3)","(7 ; 7)","(0 ; 0)"],0)]]},
+ {n:"Benar atau Salah",ic:"✅",u:1,L:[
+  [tf("Titik berat benda homogen simetris berada di pusat simetrinya.",1),tf("Titik berat selalu berada di dalam benda.",0)],
+  [tf("Titik berat segitiga berada ⅓ tinggi dari alasnya.",1),tf("Pada lamina berlubang, luas lubang ditambahkan.",0)],
+  [tf("Persegi panjang 6×4 (sudut di 0,0) titik beratnya (3 ; 2).",1),tf("Titik berat setengah lingkaran berada di pusat lingkaran.",0)]]},
+ {n:"Seret Kata",ic:"🧩",u:1,L:[
+  [dr("Titik berat lingkaran berada di ___ lingkaran.",["pusat","tepi","luar"],["pusat"]),dr("Persegi sisi 4 sudut (0,0): x₀ = ___ dan y₀ = ___",["2","4","8"],["2","2"])],
+  [dr("Segitiga alas 6 tinggi 9: titik berat setinggi ___ cm dari alas.",["3","6","9"],["3"]),dr("Titik berat segitiga berada ___ tinggi dari alas.",["⅓","½","⅔"],["⅓"])],
+  [dr("Benda berlubang: y₀ = (A₁y₁ ___ A₂y₂) / (A₁ ___ A₂)",["−","+","×"],["−","−"]),dr("Persegi panjang 14 × 6: titik berat (___ ; ___)",["7","3","14","6"],["7","3"])]]},
+ {n:"Kuis Kilat",ic:"⚡",u:1,L:[
+  [mc("Mengapa mobil balap dibuat rendah?",["Titik berat rendah membuat stabil","Agar terlihat keren","Supaya ringan"],0),mc("Menara Pisa tidak roboh karena ...",["garis berat dari titik berat masih jatuh di dalam alas","tanahnya miring","bahannya ringan"],0)],
+  [mc("Agar rak buku tidak mudah terguling, buku berat diletakkan di ...",["rak bawah","rak atas","sisi luar"],0),mc("Ransel berat sebaiknya ditaruh ...",["dekat punggung","jauh dari punggung","di tangan"],0)],
+  [mc("Penari balet berdiri satu kaki, titik beratnya harus ...",["tepat di atas titik tumpu","di luar tubuh jauh","sejajar lantai"],0),mc("Benda tegak akan terguling jika garis kerja berat jatuh ...",["di luar bidang alas","di dalam bidang alas","tepat di tengah alas"],0)]]}];
+GAMES[3].L.forEach(l=>l.forEach(q=>q.time=20));
+
+function levels(g){ const G=GAMES[g];
+ app.innerHTML = shell(`<h2 class="text-3xl font-extrabold text-orange-600">${G.ic} ${G.n}</h2><div class="grid gap-3 mt-4">${[0,1,2].map(i=>`<button class="btn text-xl" data-l="${i}" ${i<G.u?"":"disabled"}>${i<G.u?"":"🔒 "}Level ${i+1}</button>`).join("")}</div><button class="btn btn2 mt-5" data-go="kuis">◀ Pilih game lain</button>`);
+ app.querySelectorAll("[data-l]").forEach(b=>b.onclick=()=>{ const l=+b.dataset.l;
+  runSet(G.L[l],`${G.n} - Level ${l+1}`,sc=>{ const pass=sc>=1; if(pass&&l+1===G.u&&G.u<3) G.u++;
+   app.innerHTML=shell(`<div class="card text-center"><div class="text-6xl">${"⭐".repeat(sc)||"💪"}</div><h2 class="text-3xl font-extrabold text-orange-600">${pass?"Level selesai!":"Coba lagi ya!"}</h2><p class="my-2">Skor: ${sc} dari ${G.L[l].length}</p><button class="btn" id="bk">Pilih Level</button></div>`); $("bk").onclick=()=>levels(g); }); }); }
+
+go("splash");
+</script>
+</body>
+</html>
